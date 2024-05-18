@@ -74,6 +74,8 @@ class Channel_Stats(commands.Cog):
                         member = await guild.fetch_member(res[idx]['user'])
                     except discord.errors.NotFound:
                         member = None
+                    except IndexError:
+                        continue
                     disp = 'placehold'
                     if member:
                         disp = member.display_name
