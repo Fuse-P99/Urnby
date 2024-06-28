@@ -15,7 +15,7 @@ SECS_IN_WEEK = SECS_IN_DAY * 7
 
 def get_current_datetime() -> datetime.datetime:
     now = utc.localize(datetime.datetime.utcnow().replace(microsecond=0))
-    return now.astimezone(ny_tz)
+    return now.astimezone(utc)
     
 def get_current_timestamp() -> int:
     return int(get_current_datetime().timestamp())
@@ -27,7 +27,7 @@ def get_timezone_str() -> str:
     return get_current_datetime().strftime('%Z')
 
 def datetime_from_timestamp(timestamp:int) -> datetime.datetime:
-    return datetime.datetime.fromtimestamp(timestamp, ny_tz)
+    return datetime.datetime.fromtimestamp(timestamp, utc)
     
 def datetime_from_iso(isostring:str) -> datetime.datetime:
     return datetime.datetime.fromisoformat(isostring)
@@ -35,10 +35,10 @@ def datetime_from_iso(isostring:str) -> datetime.datetime:
 def datetime_combine(date, time) -> datetime.datetime:
     d = datetime.date.fromisoformat(date)
     t = datetime.time.fromisoformat(time)
-    return datetime.datetime.combine(d, t, tzinfo=ny_tz)
+    return datetime.datetime.combine(d, t, tzinfo=utc)
 
 def date_from_iso(isodatestring:str) -> datetime.date:
-    return ny_tz.normalize(datetime.date.fromisoformat(isodatestring))
+    return utc.normalize(datetime.date.fromisoformat(isodatestring))
 
 def time_from_iso(isotimestring:str) -> datetime.time:
     return datetime.time.fromisoformat(isotimestring)
