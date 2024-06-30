@@ -26,7 +26,7 @@ from checks.IsInDev import is_in_dev, InDevelopment
 # Create datetime 
 # Store as timestamp integer (this strips TZ info and stored value is not timezone specific)
 # Any Values displayed will utilize discord <t:[timestamp]:f> for accessing
-#   Unless monospaced format is wanted (ie: ``` ```) for formating purposes, will display as EST timezone (need to assign tz info)
+#   Unless monospaced format is wanted (ie: ``` ```) for formating purposes, will display as UCT timezone (need to assign tz info)
 # Any stored values NOT as integer timestamps are for info/debug ONLY do not access isoformats
 
 class MemberQueryResult(Enum):
@@ -577,7 +577,7 @@ class Clocks(commands.Cog):
         secs = await db.get_user_seconds(ctx.guild.id, member.id)
         tot = com.get_hours_from_secs(secs)
         last = await db.get_hisorical_user_last_record(ctx.guild.id, member.id)
-        await ctx.send_response(content=f'{member.display_name} has accrued {tot:.2f} hours. ({secs} seconds). Last record at <t:{int(last["out_timestamp"])}>', ephemeral=True)
+        await ctx.send_response(content=f'{member.display_name} has Urned {tot:.2f} hours. ({secs} seconds). Last record at <t:{int(last["out_timestamp"])}>', ephemeral=True)
     
     @get_group.command(name="usersessions", description='Ephemeral - Get list of user\'s historical sessions')
     @is_member()
@@ -598,7 +598,7 @@ class Clocks(commands.Cog):
             await ctx.send_response(content=f"{member.display_name} has no recorded sessions", ephemeral=True)
             return
         chunks = []
-        title = f"_ _\n<@{userid}> Sessions:\n"
+        title = f"_ _\n<@{userid}>  -  [🍺]Happy hour(s)  -  [⚱️]Urned  -  [S]olo  -  [Q]uake  -  [R]ecruitment\n"
         content = ""
         for item in res:
             _in = com.datetime_from_timestamp(item['in_timestamp'])
@@ -610,7 +610,7 @@ class Clocks(commands.Cog):
                 ses_hours = item['out_timestamp'] - item['in_timestamp']
             catagory = "  "
             if "_PCT_BONUS_" in item['character']:
-                catagory = " +"
+                catagory = "🍺"
             elif item['character'].startswith("URN_ZERO_OUT_EVENT"):
                 catagory = "⚱️"
             elif item['character'] == "SOLO_HOLD_BONUS":
@@ -620,7 +620,7 @@ class Clocks(commands.Cog):
             elif item['character'] == "RECRUIT_BONUS":
                 catagory = " R"
             tz = com.get_timezone_str()
-            content += f"\n{item['rowid']:5} {_in.date().isoformat()} - {item['session'][:45]:45}  {catagory} from {_in.time()} {_in.strftime('%Z')} to {_out.time()} {_out.strftime('%Z')} for {ses_hours} {_timetype.lower()}"
+            content += f"\n{item['rowid']:5} {_in.date().isoformat()} - {item['session'][:44]:44}  {catagory} {_in.time()} {_in.strftime('%Z')} to {_out.time()} {_out.strftime('%Z')} for {ses_hours} {_timetype.lower()}"
             # Max message length is 2000, give 100 leway for title/user hours ending
             if len(content) >= 1850:
                 clip_idx = content.rfind('\n', 0, 1850)
@@ -629,7 +629,7 @@ class Clocks(commands.Cog):
         
         secs = await db.get_user_seconds(ctx.guild.id, userid)
         tot = com.get_hours_from_secs(secs)
-        tail = f"\n<@{userid}> has accrued {tot} hours. ({secs} seconds)"        
+        tail = f"\n<@{userid}> has Urned {tot} hours. ({secs} seconds)"        
         if res:
             chunks.append(content)
         
@@ -681,7 +681,7 @@ class Clocks(commands.Cog):
                         _id: discord.Option(str, name="userid", required=True),
                         username: discord.Option(str, name="username", required=True),
                         date: discord.Option(str, name="killdate", description="Form YYYY-MM-DD", required=True),
-                        time: discord.Option(str, name="killtime", description="Form HH:MM in EST", required=True)):
+                        time: discord.Option(str, name="killtime", description="Form HH:MM in UTC", required=True)):
         
         userid = await check_user_id(ctx, _id)
         if userid is None:
@@ -722,7 +722,7 @@ class Clocks(commands.Cog):
                                   row: discord.Option(str, name="recordnumber", required=True),
                                   _type: discord.Option(str, name="type", choices=['Clock in time', 'Clock out time'], required=True),
                                   _date: discord.Option(str, name="date", description="Form YYYY-MM-DD", required=True),
-                                  time: discord.Option(str, name="time", description="24 hour clock, 12pm midnight is 00:00", required=True)):
+                                  time: discord.Option(str, name="time", description="24 hour clock, Input is UTC", required=True)):
             
         rec = await db.get_historical_record(ctx.guild.id, row)
         
@@ -764,8 +764,8 @@ class Clocks(commands.Cog):
                             userid: discord.Option(str, name="userid", required=True),
                             username: discord.Option(str, name="username", required=True),
                             date: discord.Option(str, name="startdate", description="Form YYYY-MM-DD", required=True),
-                            intime: discord.Option(str, name="intime", description="Form HH:MM in EST", required=True),
-                            outtime: discord.Option(str, name="outtime", description="Form HH:MM in EST", required=True),
+                            intime: discord.Option(str, name="intime", description="Form HH:MM in UCT", required=True),
+                            outtime: discord.Option(str, name="outtime", description="Form HH:MM in UCT", required=True),
                             character: discord.Option(str, name="character", default=''),
                             dayafter: discord.Option(str, name="dayafter", choices=['True', 'False'], description="Did clockout occur the day after in?", default='False')):
         userid = await check_user_id(ctx, userid)

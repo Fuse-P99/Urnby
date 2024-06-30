@@ -16,7 +16,7 @@ import data.databaseapi as db
 REFRESH_TYPE = 'seconds'
 REFRESH_TIME = 360
 
-CAMP_HOURS_TILL_DS = 18
+CAMP_HOURS_TILL_DS = 24
 
 DEBUG = os.getenv('DEBUG')
 if DEBUG:

@@ -123,12 +123,12 @@ class Misc(commands.Cog):
         save_guild_config(str(ctx.guild.id), guild_config)
         await ctx.send_response(content=f"Config item set - {_key} = {guild_config[_key]}")
     
-    @commands.slash_command(name='configaddbonushours', description='Add a set of bonus hours')
+    @commands.slash_command(name='configaddbonushours', description='Set Bonus hours and Percentage')
     @is_admin()
     async def _add_config_bonus_hours(self, ctx, 
-                          _start: discord.Option(str, name="start", required=True),
-                          _end: discord.Option(str, name="end", required=True),
-                          _pct: discord.Option(int, name="pct", required=True)):
+                          _start: discord.Option(str, name="start", description="24HR - Input is UTC", required=True),
+                          _end: discord.Option(str, name="end", description="24HR - Input is UTC", required=True),
+                          _pct: discord.Option(int, name="pct", description="Percentage of hour", required=True)):
         guild_config = get_guild_config(str(ctx.guild.id))
         if not guild_config.get('bonus_hours'):
             guild_config['bonus_hours'] = []
@@ -144,7 +144,7 @@ class Misc(commands.Cog):
         
         guild_config['bonus_hours'].append({"start":_start, "end":_end, "pct": _pct})
         save_guild_config(str(ctx.guild.id), guild_config)
-        await ctx.send_response(content=f"Config item set - bonus_hours = {guild_config['bonus_hours']}")
+        await ctx.send_response(content=f"Config item set - UTC Bonus Hrs = {guild_config['bonus_hours']}")
     
     @commands.slash_command(name='configclearitem', description='Clear a configuration item, will need to set values again')
     @is_admin()
