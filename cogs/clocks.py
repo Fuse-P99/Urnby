@@ -230,6 +230,65 @@ class Clocks(commands.Cog):
             return
         return
     
+    def get_tod_scaling_map(self, ctx):
+        config = self.get_config(ctx.guild.id)
+        if not config.get('tod_scaling'):
+            return None
+        return {
+            float(key): val
+            for key, val in config['tod_scaling'].items()
+        }
+
+    async def tod_partition(self, ctx, total_seconds):
+        tod_scaling_map = self.get_tod_scaling_map(ctx)
+        if not tod_scaling_map:
+            return [total_seconds, 1.0]
+
+        tod_dict = await db.get_tod(ctx.guild.id, mob_name="Drusella Sathir")
+        tod_datetime = com.datetime_from_timestamp(tod_dict['tod_timestamp']) + datetime.timedelta(days=1)
+        seconds_to_spawn = int((tod_datetime - com.get_current_datetime()).total_seconds())
+        seconds_to_spawn = max(seconds_to_spawn, 0.0)
+        hours_to_spawn = seconds_to_spawn / 3600.0
+
+        boundaries = sorted(tod_scaling_map, reverse=True) + [0.0]
+        boundary_map = {
+            (boundaries[i], boundaries[i + 1]): tod_scaling_map[boundaries[i]]
+            for i in range(len(boundaries) - 1)
+        }
+
+        # The given total_seconds representated as hours remaining to spawn
+        user_hours = total_seconds / 3600.0
+        user_start = hours_to_spawn + user_hours
+        user_end = hours_to_spawn
+
+        partitioned_hours = []
+        user_position = user_start
+        for (partition_start, partition_end), partition_multiplier in boundary_map.items():
+            if partition_end > user_position:
+                continue
+
+            user_remainder = user_position - user_end
+            remaining_in_partition = user_position - partition_end
+
+            if user_remainder <= remaining_in_partition:
+                partitioned_hours.append((user_remainder, partition_multiplier))
+                break
+
+            partitioned_hours.append((remaining_in_partition, partition_multiplier))
+            user_position -= remaining_in_partition
+
+        partitioned_seconds = [
+            (int(partition_hours * 3600.0), partition_multiplier)
+            for (partition_hours, partition_multiplier) in partitioned_hours
+        ]
+
+        scaled_total_seconds = sum(
+            partition_seconds * partition_multiplier
+            for partition_seconds, partition_multiplier in partitioned_seconds
+        )
+
+        return partitioned_seconds, scaled_total_seconds
+
     @commands.slash_command(name='clockout', description='Clock out of the active session')
     @is_member()
     @is_member_visible()
@@ -324,17 +383,27 @@ class Clocks(commands.Cog):
         res = await db.remove_active_record(ctx.guild.id, record)
         
         _out = com.get_current_datetime()
+        in_ts = record['in_timestamp']
+        out_ts = int(_out.timestamp())
+        ts_delta = out_ts - in_ts
+
+        partitioned_seconds, scaled_ts_delta = await self.tod_partition(ctx, ts_delta)
         record['_DEBUG_out'] = _out.isoformat()
-        record['out_timestamp'] = int(_out.timestamp())
-        record['_DEBUG_delta'] = com.get_hours_from_secs(record['out_timestamp']-record['in_timestamp'])
-        
+        record['out_timestamp'] = in_ts + scaled_ts_delta
+        record['_DEBUG_delta'] = com.get_hours_from_secs(scaled_ts_delta)
+
+        # In-memory field for bonus hours calculation, which should not operate on scaled timestamps
+        record['_EPHEMERAL_raw_out_timestamp'] = out_ts
+
         res = await db.store_new_historical(ctx.guild.id, record)
         
         if not res:
             return {'status': False, 'record': record, 'row': None, 'content': f'Failed to store record to historical, contact admin\n{found}'}
         tot = await db.get_user_hours(ctx.guild.id, user_id)
         user = await ctx.guild.fetch_member(user_id)
-        return {'status': True,'record': record, 'row': res, 'content': f'{user.display_name} {com.scram("Successfully")} clocked out at <t:{record["out_timestamp"]}>, stored record #{res} for {record["_DEBUG_delta"]} hours. Your total is at {tot}'}
+
+        hours_breakdown = '[' + ' + '.join(f'{duration / 3600.0 :0.3f} * {multiplier}' for duration, multiplier in partitioned_seconds) + ']'
+        return {'status': True,'record': record, 'row': res, 'content': f'{user.display_name} {com.scram("Successfully")} clocked out at <t:{record["out_timestamp"]}>, stored record #{res} for {record["_DEBUG_delta"]} hours {hours_breakdown}. Your total is at {tot}.'}
     
     # ==============================================================================
     # Session Commands
