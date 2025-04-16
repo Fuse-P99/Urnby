@@ -44,12 +44,12 @@ class Tod(commands.Cog):
                "_DEBUG_tod_datetime": tod_datetime.isoformat(), 
                }
         row = await db.store_tod(ctx.guild.id, rec)
-        await ctx.send_response(content=f"Set tod at {rec['_DEBUG_tod_datetime']}, Local: <t:{int(now.timestamp())}>. DSpawn will happen at {(tod_datetime+datetime.timedelta(days=1)).isoformat()}, Local: <t:{int((tod_datetime+datetime.timedelta(days=1)).timestamp())}>")
+        await ctx.send_response(content=f"Set tod at {rec['_DEBUG_tod_datetime']} UTC, <t:{int(tod_datetime.timestamp())}>. Drusella will spawn @: <t:{int((tod_datetime+datetime.timedelta(days=1)).timestamp())}>")
         return
         
     @commands.slash_command(name='settod', description='Set tod to a more specific time, with optional parameter for yesterday')
     async def _settod(self, ctx, 
-                       tod: discord.Option(str, name='tod', description="Use when time is not 'now' - 24hour clock time EST (ex 14:49)" , default='now'),
+                       tod: discord.Option(str, name='tod', description="Use when time is not 'now' - 24hour clock time UTC (ex 14:49)" , default='now'),
                        mobname: discord.Option(str, name='mobname', default='Drusella Sathir'),
                        daybefore: discord.Option(bool, name='daybefore', description='Use if the tod was actually yesterday',  default=False)):
         now = com.get_current_datetime()
@@ -82,7 +82,7 @@ class Tod(commands.Cog):
                "_DEBUG_tod_datetime": tod_datetime.isoformat(), 
                }
         row = await db.store_tod(ctx.guild.id, rec)
-        await ctx.send_response(content=f"Set tod at {rec['_DEBUG_tod_datetime']} EST, Local: <t:{int(tod_datetime.timestamp())}>. DSpawn will happen at {(tod_datetime+datetime.timedelta(days=1)).isoformat()} EST, Local: <t:{int((tod_datetime+datetime.timedelta(days=1)).timestamp())}>")
+        await ctx.send_response(content=f"Set tod at {rec['_DEBUG_tod_datetime']} UTC, <t:{int(tod_datetime.timestamp())}>. Drusella will spawn @: <t:{int((tod_datetime+datetime.timedelta(days=1)).timestamp())}>")
         return
     
     @commands.slash_command(name='tod', description='Get current ToD record')
@@ -90,10 +90,16 @@ class Tod(commands.Cog):
         rec = await db.get_tod(ctx.guild.id)
         now = com.get_current_datetime()
         hours_till = com.get_hours_from_secs((com.datetime_from_timestamp(rec['tod_timestamp'])+datetime.timedelta(days=1)).timestamp() - now.timestamp())
+       
+        time_difference = (com.datetime_from_timestamp(rec['tod_timestamp']) + datetime.timedelta(days=1)) - now
+        hours, remainder = divmod(time_difference.seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        formatted_time = f"{hours:2}h {minutes:2}m {seconds:2}s"
+
         if not hours_till:
             await ctx.send_response(content=f"Last ToD was {rec['_DEBUG_tod_datetime']} unknown upcoming spawn", ephemeral=True)
             return
-        await ctx.send_response(content=f"Last ToD was {rec['_DEBUG_tod_datetime']} {rec['mob']} will spawn in {hours_till} hours at <t:{int(now.timestamp())}> local", ephemeral=True)
+        await ctx.send_response(content=f"Last ToD Input was by <@{rec['submitted_by_id']}> - {rec['_DEBUG_tod_datetime']} UTC.\n {rec['mob']} will spawn @ <t:{int((com.datetime_from_timestamp(rec['tod_timestamp']) + datetime.timedelta(days=1)).timestamp())}> - in {formatted_time}", ephemeral=False)
 
 async def time_delta_to_minutes(delta:datetime.timedelta) -> float:
     secs = delta.total_seconds()
