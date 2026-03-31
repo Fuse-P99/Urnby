@@ -27,7 +27,7 @@ MOBILE_REDUCE_SPACE = 10
 
 DEBUG = os.getenv('DEBUG')
 if DEBUG:
-    REFRESH_TIME = 60
+    REFRESH_TIME = 15
 
 class Format(Enum):
     Normal = 0
@@ -181,24 +181,62 @@ class Dashboard(commands.Cog):
         else:
             self.delay[ctx.guild.id] = False
             await ctx.send_response(f"Refeshing should be enabled. Forcing update, if no update comes, contact admin")
-    
+
+
     async def _purge_dashboard(self, guild):
         def chk(msg):
-            if msg.author.id == self.bot.user.id:
-                return True
-            return False
+            return msg.author.id == self.bot.user.id
+
         config = self.get_config(guild.id)
+
+        async def safe_send(channel, storage_dict, key, label):
+            try:
+                storage_dict[key] = await channel.send(content=f'Starting {label}...', silent=True)
+            except discord.DiscordServerError as e:
+                print(f"{com.get_current_iso()} [{guild.id}] - Failed to send {label}: {e}")
+                # retry once after short delay
+                await asyncio.sleep(5)
+                try:
+                    storage_dict[key] = await channel.send(content=f'Starting {label}...', silent=True)
+                except Exception as e2:
+                    print(f"{com.get_current_iso()} [{guild.id}] - Retry failed for {label}: {e2}")
+
         if config.get('dashboard_channel'):
             print(f'{com.get_current_iso()} [{guild.id}] - Purging dashboard', flush=True)
             channel = await guild.fetch_channel(config['dashboard_channel'])
-            await channel.purge(check=chk)
-            self.dash_message[guild.id] = await channel.send(content=f'Starting Dashboard...', silent=True)
+            try:
+                await channel.purge(check=chk)
+            except Exception as e:
+                print(f"{com.get_current_iso()} [{guild.id}] - Purge failed for dashboard: {e}")
+            await safe_send(channel, self.dash_message, guild.id, "Dashboard")
 
         if config.get('mobile_dash_channel'):
             print(f'{com.get_current_iso()} [{guild.id}] - Purging mobile dash', flush=True)
             mobile_channel = await guild.fetch_channel(config['mobile_dash_channel'])
-            await mobile_channel.purge(check=chk)
-            self.dash_mobile_message[guild.id] = await mobile_channel.send(content=f'Starting Dashboard...', silent=True)
+            try:
+                await mobile_channel.purge(check=chk)
+            except Exception as e:
+                print(f"{com.get_current_iso()} [{guild.id}] - Purge failed for mobile dash: {e}")
+            await safe_send(mobile_channel, self.dash_mobile_message, guild.id, "Mobile Dashboard")
+
+
+    # async def _purge_dashboard(self, guild):
+    #     def chk(msg):
+    #         if msg.author.id == self.bot.user.id:
+    #             return True
+    #         return False
+    #     config = self.get_config(guild.id)
+    #     if config.get('dashboard_channel'):
+    #         print(f'{com.get_current_iso()} [{guild.id}] - Purging dashboard', flush=True)
+    #         channel = await guild.fetch_channel(config['dashboard_channel'])
+    #         await channel.purge(check=chk)
+    #         self.dash_message[guild.id] = await channel.send(content=f'Starting Dashboard...', silent=True)
+
+    #     if config.get('mobile_dash_channel'):
+    #         print(f'{com.get_current_iso()} [{guild.id}] - Purging mobile dash', flush=True)
+    #         mobile_channel = await guild.fetch_channel(config['mobile_dash_channel'])
+    #         await mobile_channel.purge(check=chk)
+    #         self.dash_mobile_message[guild.id] = await mobile_channel.send(content=f'Starting Dashboard...', silent=True)
 
     
     @tasks.loop(**{REFRESH_TYPE:REFRESH_TIME})

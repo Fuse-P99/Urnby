@@ -1,5 +1,5 @@
 # Builtin
-import datetime
+from datetime import datetime, timedelta, timezone
 import json
 
 # External
@@ -16,11 +16,21 @@ from checks.IsMemberVisible import is_member_visible, NotMemberVisible
 from checks.IsMember import is_member, NotMember
 from checks.IsInDev import is_in_dev, InDevelopment
 
+# --- Patch your helpers to always return UTC-aware datetimes ---
+def get_current_datetime():
+    # Always return UTC-aware datetime
+    return datetime.now(timezone.utc)
+
+def datetime_combine(date_str, time_str):
+    # Build a UTC-aware datetime from date + HH:MM string
+    dt = datetime.fromisoformat(f"{date_str}T{time_str}")
+    return dt.replace(tzinfo=timezone.utc)
+
 class Tod(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
-        print('Initialization on tod complete')
+        print('Initilization on tod complete')
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -30,31 +40,31 @@ class Tod(commands.Cog):
     
     @commands.slash_command(name='todnow', description='Simplified tod, takes required parameter of minutes ago')
     async def _tod_now(self, ctx, ago: discord.Option(int, name='minutes_ago', description="Minutes since tod, can be 0" , required=True)):
-        now = com.get_current_datetime().astimezone(datetime.timezone.utc)
-        tod_datetime = (now - datetime.timedelta(minutes=ago)).astimezone(datetime.timezone.utc)
+        now = get_current_datetime()
+        tod_datetime = now - timedelta(minutes=ago)
             
         rec = {
-            "mob": 'Drusella Sathir',
-            "tod_timestamp": tod_datetime.timestamp(),
-            "submitted_timestamp": now.timestamp(),
-            "submitted_by_id": ctx.author.id,
-            "_DEBUG_submitted_datetime": now.isoformat().replace("+00:00", "Z"),
-            "_DEBUG_submitted_by": ctx.author.display_name,
-            "_DEBUG_tod_datetime": tod_datetime.isoformat().replace("+00:00", "Z"),
-        }
+               "mob": 'Drusella Sathir', 
+               "tod_timestamp": tod_datetime.timestamp(), 
+               "submitted_timestamp": now.timestamp(), 
+               "submitted_by_id": ctx.author.id,
+               "_DEBUG_submitted_datetime": now.isoformat().replace("+00:00","Z"), 
+               "_DEBUG_submitted_by": ctx.author.display_name, 
+               "_DEBUG_tod_datetime": tod_datetime.isoformat().replace("+00:00","Z"), 
+               }
         row = await db.store_tod(ctx.guild.id, rec)
         await ctx.send_response(
             content=f"Set tod at {rec['_DEBUG_tod_datetime']} UTC, <t:{int(tod_datetime.timestamp())}>. "
-                    f"Drusella will spawn @: <t:{int((tod_datetime+datetime.timedelta(days=1)).timestamp())}>"
+                    f"Drusella will spawn @: <t:{int((tod_datetime+timedelta(days=1)).timestamp())}>"
         )
         return
         
     @commands.slash_command(name='settod', description='Set tod to a more specific time, with optional parameter for yesterday')
-    async def _settod(self, ctx,
+    async def _settod(self, ctx, 
                        tod: discord.Option(str, name='tod', description="Use when time is not 'now' - 24hour clock time UTC (ex 14:49)" , default='now'),
                        mobname: discord.Option(str, name='mobname', default='Drusella Sathir'),
                        daybefore: discord.Option(bool, name='daybefore', description='Use if the tod was actually yesterday',  default=False)):
-        now = com.get_current_datetime().astimezone(datetime.timezone.utc)
+        now = get_current_datetime()
         tod_datetime = None
         if tod == 'now':
             tod_datetime = now
@@ -66,36 +76,36 @@ class Tod(commands.Cog):
             offset = -1
             
         if not tod_datetime:    
-            tod_datetime = com.datetime_combine((now.date()+datetime.timedelta(days=offset)).isoformat(), tod)
-            tod_datetime = tod_datetime.astimezone(datetime.timezone.utc)
+            tod_datetime = datetime_combine((now.date()+timedelta(days=offset)).isoformat(), tod)
         
         exact = bool(tod_datetime.second or tod_datetime.microsecond)
         
         rec = {
-            "mob": mobname,
-            "exact": exact,
-            "tod_timestamp": tod_datetime.timestamp(),
-            "submitted_timestamp": now.timestamp(),
-            "submitted_by_id": ctx.author.id,
-            "_DEBUG_submitted_datetime": now.isoformat().replace("+00:00", "Z"),
-            "_DEBUG_submitted_by": ctx.author.display_name,
-            "_DEBUG_tod_datetime": tod_datetime.isoformat().replace("+00:00", "Z"),
-        }
+               "mob": mobname, 
+               "exact": exact,
+               "tod_timestamp": tod_datetime.timestamp(), 
+               "submitted_timestamp": now.timestamp(), 
+               "submitted_by_id": ctx.author.id,
+               "_DEBUG_submitted_datetime": now.isoformat().replace("+00:00","Z"), 
+               "_DEBUG_submitted_by": ctx.author.display_name, 
+               "_DEBUG_tod_datetime": tod_datetime.isoformat().replace("+00:00","Z"), 
+               }
         row = await db.store_tod(ctx.guild.id, rec)
         await ctx.send_response(
             content=f"Set tod at {rec['_DEBUG_tod_datetime']} UTC, <t:{int(tod_datetime.timestamp())}>. "
-                    f"Drusella will spawn @: <t:{int((tod_datetime+datetime.timedelta(days=1)).timestamp())}>"
+                    f"Drusella will spawn @: <t:{int((tod_datetime+timedelta(days=1)).timestamp())}>"
         )
         return
     
     @commands.slash_command(name='tod', description='Get current ToD record')
     async def _get_tod(self, ctx):
         rec = await db.get_tod(ctx.guild.id)
-        now = com.get_current_datetime().astimezone(datetime.timezone.utc)
-        tod_dt = com.datetime_from_timestamp(rec['tod_timestamp']).astimezone(datetime.timezone.utc)
-        hours_till = com.get_hours_from_secs((tod_dt+datetime.timedelta(days=1)).timestamp() - now.timestamp())
+        now = get_current_datetime()
+        hours_till = com.get_hours_from_secs(
+            (com.datetime_from_timestamp(rec['tod_timestamp'])+timedelta(days=1)).timestamp() - now.timestamp()
+        )
        
-        time_difference = (tod_dt + datetime.timedelta(days=1)) - now
+        time_difference = (com.datetime_from_timestamp(rec['tod_timestamp']) + timedelta(days=1)) - now
         hours, remainder = divmod(time_difference.seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         formatted_time = f"{hours:2}h {minutes:2}m {seconds:2}s"
@@ -104,12 +114,12 @@ class Tod(commands.Cog):
             await ctx.send_response(content=f"Last ToD was {rec['_DEBUG_tod_datetime']} unknown upcoming spawn", ephemeral=True)
             return
         await ctx.send_response(
-            content=f"Last ToD Input was by <@{rec['submitted_by_id']}> - {rec['_DEBUG_tod_datetime']} UTC.\n"
-                    f"{rec['mob']} will spawn @ <t:{int((tod_dt + datetime.timedelta(days=1)).timestamp())}> - in {formatted_time}",
+            content=f"Last ToD Input was by <@{rec['submitted_by_id']}> - {rec['_DEBUG_tod_datetime']} UTC.\n "
+                    f"{rec['mob']} will spawn @ <t:{int((com.datetime_from_timestamp(rec['tod_timestamp']) + timedelta(days=1)).timestamp())}> - in {formatted_time}",
             ephemeral=False
         )
 
-def time_delta_to_minutes(delta: datetime.timedelta) -> float:
+async def time_delta_to_minutes(delta: timedelta) -> float:
     secs = delta.total_seconds()
     return secs / 60
 
