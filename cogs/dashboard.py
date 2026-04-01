@@ -27,7 +27,7 @@ MOBILE_REDUCE_SPACE = 10
 
 DEBUG = os.getenv('DEBUG')
 if DEBUG:
-    REFRESH_TIME = 15
+    REFRESH_TIME = 60
 
 class Format(Enum):
     Normal = 0
